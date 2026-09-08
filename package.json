@@ -1,0 +1,13 @@
+{
+  "name": "mock-crm-server",
+  "version": "1.0.0",
+  "description": "Mock CRM server for LEO platform integration testing",
+  "main": "mock-crm.js",
+  "scripts": {
+    "start": "node mock-crm.js"
+  },
+  "license": "MIT",
+  "dependencies": {
+    "express": "^4.19.2"
+  }
+}
