@@ -496,31 +496,40 @@ app.get('/api/webhooks', (req, res) => {
 });
 
 app.post('/api/webhooks/subscribe', (req, res) => {
-  const { url, events } = req.body;
+  // DEBUG: log every incoming subscribe request verbatim so we can see
+  // exactly what LEO is sending, including any fields/casing we don't
+  // otherwise use (e.g. "secret").
+  console.log('\n[DEBUG] POST /api/webhooks/subscribe');
+  console.log('  Body:', JSON.stringify(req.body, null, 2));
+  console.log('  Headers:', JSON.stringify(req.headers, null, 2));
 
+  const { url, events, secret } = req.body || {};
+
+  // Only "url" is required. Event validation is intentionally lenient
+  // (unrecognized event names are accepted, not rejected) since the goal
+  // right now is to see what a real caller sends, not to gatekeep it.
   if (!url || typeof url !== 'string') {
+    console.log('  -> REJECTED: missing/invalid "url"');
     return res.status(400).json({ error: '"url" (string) is required' });
   }
 
   const subscribedEvents = Array.isArray(events) && events.length > 0 ? events : ['*'];
-  const invalidEvents = subscribedEvents.filter(
+  const unknownEvents = subscribedEvents.filter(
     (e) => e !== '*' && !VALID_EVENTS.includes(e)
   );
-  if (invalidEvents.length > 0) {
-    return res.status(400).json({
-      error: `Unknown event type(s): ${invalidEvents.join(', ')}`,
-      validEvents: VALID_EVENTS,
-    });
+  if (unknownEvents.length > 0) {
+    console.log(`  -> WARNING: unrecognized event type(s), accepting anyway: ${unknownEvents.join(', ')}`);
   }
 
   const webhook = {
     id: generateId('webhook'),
     url,
     events: subscribedEvents,
+    secret: secret || null,
     createdAt: new Date().toISOString(),
   };
   db.webhooks.push(webhook);
-  console.log(`[WEBHOOK SUBSCRIBED] ${webhook.id} -> ${url} (events: ${subscribedEvents.join(', ')})`);
+  console.log(`  -> SUBSCRIBED: ${webhook.id} -> ${url} (events: ${subscribedEvents.join(', ')})`);
   res.status(201).json(webhook);
 });
 
