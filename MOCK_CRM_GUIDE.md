@@ -322,7 +322,62 @@ been delivered to.
 
 ---
 
-## 7. Resetting data
+## 7. Receiving tasks from LEO
+
+LEO pushes a CRM task for each analysed call to a **separate URL per test
+business**. The payload has no business id — the path is the only thing
+that tells the businesses apart.
+
+| Method | Path | Description |
+|---|---|---|
+| POST | `/api/leo/tasks/benaroshos` | Receive a task for benaroshos |
+| POST | `/api/leo/tasks/pashko` | Receive a task for pashko |
+| POST | `/api/leo/tasks/esti_r` | Receive a task for esti_r |
+| GET | `/api/leo/tasks` | Per-business summary (total / real / test / last received) |
+| GET | `/api/leo/tasks/:business` | Tasks received for one business, newest first (`?test=false` = real only, `?test=true` = test only) |
+| GET | `/leo` | HTML page with a table per business; test requests are marked **TEST** |
+
+Live URLs to configure in LEO:
+
+```
+https://mock-crm-leo-testing.onrender.com/api/leo/tasks/benaroshos
+https://mock-crm-leo-testing.onrender.com/api/leo/tasks/pashko
+https://mock-crm-leo-testing.onrender.com/api/leo/tasks/esti_r
+```
+
+Behaviour of the POST routes:
+
+- **Any valid JSON returns `200`**, including LEO's "test connection" request
+  (`"test": true`), regardless of `Content-Type`. No `Authorization` header is
+  required; if one is sent, its value is never logged or stored.
+- Malformed JSON → `400`; unknown business → `404`.
+- Each stored task records `test`, `missingFields` (which of `has_task`,
+  `task_summary`, `priority`, `next_action`, `call_id` are absent/empty),
+  the full `payload`, and the request headers (Authorization redacted).
+- **Retries:** a repeated `call_id` for the same business is acknowledged with
+  `200` and `"duplicate": true`, and only bumps `attempts` on the original
+  record. LEO retries up to 4 times (15 s timeout each), so this matters when
+  the service is waking up.
+- Every request is also logged as one `[LEO TASK] {...}` JSON line, so it
+  remains visible in the Render logs after the in-memory list is wiped.
+- Up to 500 tasks are kept per business.
+
+Response example:
+
+```json
+{ "ok": true, "id": "leotask-…", "business": "pashko", "test": false, "duplicate": false, "missingFields": [] }
+```
+
+> **Render free tier / cold start:** the service sleeps after ~15 minutes
+> idle, and waking takes ~30–60 s. Before pressing "test connection" in LEO
+> or running a test call, open
+> `https://mock-crm-leo-testing.onrender.com/api/status` and wait for it to
+> respond. Sleeping, restarting or redeploying also clears all received
+> tasks — check the Render logs (`[LEO TASK]`) for anything older.
+
+---
+
+## 8. Resetting data
 
 There is no persistence — simply stop (`Ctrl+C`) and restart (`npm start`)
 the server to reset all companies, contacts, deals, activities, and webhook
